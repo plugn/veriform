@@ -1,11 +1,10 @@
-
 Veriform
 ========
 
 Veriform is a small and flexible HTML Form data validator
 
 
-Imagine, you have a HTML Form on your page. So
+Imagine, you have a HTML Form on your page. So, there are two ways of usage.
 
 
 ``` javascript
