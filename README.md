@@ -11,7 +11,7 @@ Imagine, you have a HTML Form on your page. So, there are two ways of usage.
 var aForm = document.querySelector('form');
 
 // static method usage:
-veriform.group( veriform.collect(  aForm ) );
+veriform.validate( veriform.group( veriform.collect(  aForm ) ) );
 
 // preferred usage with chaining
 veriform(aForm).collect().group().validate(conf);
