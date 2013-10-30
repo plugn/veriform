@@ -1,216 +1,226 @@
-//
 // @title Form Validation Magic
 // @usage two ways :
 //    var aForm = document.querySelector('form')
-// 		veriform.group( veriform.collect(  aForm ) )
-// 		veriform(aForm).collect().group().validate(conf);
-// 
+//    veriform.group( veriform.collect(  aForm ) )
+//    veriform(aForm).collect().group().validate(conf);
+// @dependencies underscore.js + _.plugn.js
 
 (function(scope){
 
-	// requires HTMLFormElement
-	function veriform(aForm){
-	  if ( !(this instanceof veriform) ) {
-	    return new veriform(aForm);
-	  }
-	  
-	  this._val = aForm;
-	}
+  // requires HTMLFormElement
+  function veriform(aForm){
+    if ( !(this instanceof veriform) ) {
+      return new veriform(aForm);
+    }
+    this._val = aForm;
+    this._form = aForm;
+    this.vResult = { items: {}, fails:0 };
+  }
 
-	var splitter = '__';
+  var splitter = '__';
 
-	function dumpField(el) {
-		var fName = el.getAttribute('name'),
-			fType = el.getAttribute('type');
-		if (!fName) { return; }
+  function dumpField(el) {
+    var fName = el.getAttribute('name'),
+      fType = el.getAttribute('type');
+    if (!fName) { return; }
 
-		var complicated = _.contains(['radio', 'checkbox'],  fType);
-		return {
-			type  : fType,
-			name  : fName,
-			value : (!complicated || el.checked? el.value : null)
-		};
-	}
+    var complicated = _.contains(['radio', 'checkbox'],  fType);
+    return {
+      type  : fType,
+      name  : fName,
+      value : (!complicated || el.checked? el.value : null)
+    };
+  }
 
-	var API = {
-		isSelf: function(){
-			return (this instanceof veriform);
-		},
-		ret: function(val) {
-			if (!this.isSelf()) {
-				return val;
-			}
+  var API = {
+    isSelf: function(){
+      return (this instanceof veriform);
+    },
+    ret: function(val) {
+      if (!this.isSelf()) {
+        return val;
+      }
 
-			this._val = val;
-			return this;
-		},
+      this._val = val;
+      return this;
+    },
 
-		// carefully collects fields data of a form passed in 
-		collect: function(aForm) {
-			if (this.isSelf()) {
-				aForm = this._val;
-			}
+    // carefully collects fields data of a form passed in 
+    collect: function(aForm) {
+      if (this.isSelf()) {
+        aForm = this._val;
+      }
 
-			if ( !(aForm instanceof HTMLFormElement) ) 
-				throw new Error('aForm is not an HTMLFormElement');
+      if ( !(aForm instanceof HTMLFormElement) ) 
+        throw new Error('aForm is not an HTMLFormElement');
 
-			var formData = _.chain(aForm.elements)
-				.map(dumpField)
-				.filter(_.identity) // remove nameless fields 
-				.reduce(function(memo, item, index, arr){
-					if ('checkbox' === item.type) {
-						if ( !(item.name in memo) || !(Array.isArray(memo[item.name])) )
-							memo[item.name] = [];
-						if (item.value)
-							memo[item.name].push(item.value);
-					} else if ('radio' === item.type) { 
-						memo[item.name] = (item.name in memo && !item.value)? memo[item.name] : item.value; 
-					} else {
-						memo[item.name] = item.value;
-					}			
-					return memo; 
-				}, {})
-				.value();	
+      var formData = _.chain(aForm.elements)
+        .map(dumpField)
+        .filter(_.identity) // remove nameless fields 
+        .reduce(function(memo, item, index, arr){
+          if ('checkbox' === item.type) {
+            if ( !(item.name in memo) || !(Array.isArray(memo[item.name])) )
+              memo[item.name] = [];
+            if (item.value)
+              memo[item.name].push(item.value);
+          } else if ('radio' === item.type) { 
+            memo[item.name] = (item.name in memo && !item.value)? memo[item.name] : item.value; 
+          } else {
+            memo[item.name] = item.value;
+          }     
+          return memo; 
+        }, {})
+        .value(); 
 
-			return this.ret(formData);
-		},
+      return this.ret(formData);
+    },
 
-		// group collected data  
-		group: function( formData ) {
-			if (this.isSelf()) {
-				formData =  this._val;
-			}
+    // group collected data  
+    group: function( formData ) {
+      if (this.isSelf()) {
+        formData =  this._val;
+      }
 
-			var fieldSet = {};
+      var fieldSet = {};
 
-			_.each(formData, function(item, key, list){ 
-				var couple = key.split(splitter);
+      _.each(formData, function(item, key, list){
+        var couple = key.split(splitter);
 
-				if ( 1 < couple.length  ) {
-					if ( !(_.has(fieldSet, couple[0])) ) {
-						fieldSet[couple[0]] = {};
-					}
+        if ( 1 < couple.length  ) {
+          if ( !(_.has(fieldSet, couple[0])) ) {
+            fieldSet[couple[0]] = {};
+          }
+          fieldSet[couple[0]] [key] = item;
+        } else {
+          fieldSet[key] = item;
+        }
 
-					fieldSet[couple[0]] [key] = item;
-					// fieldSet[couple[0]] [couple[1]] = item;
+      });
 
-				} else {
-					fieldSet[key] = item;
-			  }
+      return this.ret(fieldSet);
 
-			});
+    },
 
-			return this.ret(fieldSet);
+    validate: function( fGroups, conf ) {
+      if (this.isSelf()){
+        var conf = fGroups;
+        var fGroups = this._val;
+      }
 
-		},
+      function typer (g, k){
+        return ('object' == typeof g) && (null !== g);
+      }
 
-		// validate grouped data
-		validate: function( fGroups, conf ) {
-			if (this.isSelf()){
-				var conf = fGroups;
-				var fGroups = this._val;
-			}
+      var 
+        self = this,
+        mFields = _.filterHash(fGroups, typer),
+        sFields = _.rejectHash(fGroups, typer);
 
-			function typer (g, k){
-				return ('object' == typeof g) && (null !== g);
-			}
+      self.conf = conf || {};
+      self.vResult = { items: {}, fails:0 };
 
-			var 
-				self = this,
-				mFields = _.filterHash(fGroups, typer),
-				sFields = _.rejectHash(fGroups, typer);
+      // simple fields list validation
+      var svItems = self.checkList( sFields );
+      _.each(svItems, function(vItem){
+        self.markField(vItem);
+        self.markGroup(vItem);
+      }); 
 
-			self.conf = conf || {};
+      // multi-fields validation
+      _.each( mFields, function(fset, fabout){
+        var mvItems = self.checkList( fset );
+        var ok = _.every(mvItems, function(mvItem){ return mvItem.resolved; });
+        _.each(mvItems, function(vItem){
+          self.markField(vItem);
+        })
+        self.markGroup({ name: fabout, resolved: ok, rejected: !ok });
+      });
 
-			// console.log(sFields, mFields);
+      return self.ret(self.vResult);
 
-			// simple fields validated list
-			var svItems = self.checkList( sFields );
+    },
 
-			// mark them easily
-			_.each(svItems, function(vItem){
-				self.markField(vItem);
-				self.markAbout(vItem);
-			}); 
+    // 
+    // non-chainable methods
+    //
 
-			// multi-fields 
-			_.each( mFields, function(fset, fabout){
+    checkList: function( vFields ) {
+      var self = this;
+      var vList = {};
+      _.each( vFields, function(fval, fkey){
+        var vConf = _.getNested(fkey, null, self.conf);
+        var vItem = new validator.Field(fkey, fval, vConf);
+        if (vItem) {
+          vItem.check();
+          vList[fkey] = vItem;
+        }
+      });
 
-				var mvItems = self.checkList( fset );
-				var ok = _.every(mvItems, function(mvItem){ return mvItem.resolved; });
-				_.each(mvItems, function(vItem){
-					self.markField(vItem);
-				})
+      return vList;
+    },
 
-				self.markAbout({ name: fabout, resolved: ok});
+    // get current form only
+    getForm: function(){
+      var f = this._form || _.getNested('conf.form', null, this); 
+      return (f instanceof HTMLFormElement)? f : null;
+    },
 
-			});
+    // make sure we use selector inside current form only if possible
+    query: function(q){
+      var w = $(this.getForm());
+      return w.length? w.find(q) : $(q);      
+    },
 
-		},
+    // toggle validation messages / indicators
+    markField: function(vField) {
+      var f = this.query( '[name="' + vField.name + '"]' );
+      f.toggleClass('field-warn', !vField.resolved);
+      // reflect casted values
+      if (vField.castFunc && (null != vField.value)) {
+        f.val(vField.value);
+      };
+    },
 
-		// 
-		// non-chainable methods
-		//
+    // toggle validation messages / indicators
+    markGroup: function(vField, message) {
+      // console.log(' * markGroup() ', vField);
+      function markFunc(ok) {
+        this.toggleClass('warn', !ok).toggleClass('ok', !!ok);
+      }
 
-		checkList: function( vFields ) {
-			var self = this;
-			var vList = {};
-			_.each( vFields, function(fval, fkey){
-				var vConf = _.getNested(fkey, null, self.conf);
-				var vItem = new validator.Field(fkey, fval, vConf);
-				if (vItem) {
-					vItem.check();
-					vList[fkey] = vItem;
-				}
-			});
+      var ok = vField.resolved,
+          p = this.query('[data-about="' + vField.name + '"]'),
+          mFunc = _.getNested('conf.markFunc', markFunc, this);
+      mFunc.call(p, ok);
+      // console.log(' * markGroup() #', vField.name, ' mFunc: ', mFunc.toString() );
 
-			return vList;
-		},
+      if (message) {
+        p.find('.warn-reason').text(message);
+      }
 
+      this.vResult.items[ vField.name ] = vField;
+      if (vField.rejected) {
+        this.vResult.fails++;
+      }
+    }
 
-		// toggle validation messages / indicators
-		markField: function(vField) {
-			var f = $('[name="' + vField.name + '"]');
-			f.toggleClass('field-warn', !vField.resolved);
+  };
 
-			// reflect cast right
-			if (vField.castFunc && (null != vField.castValue)) {
-				f.val(vField.castValue);
-			};
-		},
-
-		// toggle validation messages / indicators
-		markAbout: function(vField, message) {
-			// console.log(' * markAbout() ', vField);
-			var 
-				ok = vField.resolved,
-				p = $('[data-about="' + vField.name + '"]');
-
-			p.toggleClass('warn', !ok).toggleClass('ok', !!ok); 
-			if (message) {
-				p.find('.warn-reason').text(message);
-			}
-		}
-
-	};
-
-	var _chaining = {
-		val: function(){
-			return this._val;
-		}
-	};
+  var _chaining = {
+    val: function(){
+      return this._val;
+    }
+  };
 
   var proto = _.extend(_chaining, API);
 
-	// expose class methods
-	_.extend(veriform.prototype, proto);
+  // expose class methods
+  _.extend(veriform.prototype, proto);
 
-	// expose static methods
-	_.extend(veriform, API);
+  // expose static methods
+  _.extend(veriform, API);
 
-	// export into a scope
-	scope.veriform = veriform;
+  // export into a scope
+  scope.veriform = veriform;
 
 })( this );
-
-// var f = fw({d: ' D '})
